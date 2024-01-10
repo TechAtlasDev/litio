@@ -1,4 +1,5 @@
 from openai import OpenAI
+import google.generativeai as genai
 from dotenv import load_dotenv
 import os
 import rich
@@ -11,17 +12,36 @@ class BugFixer:
         load_dotenv()
         self.client = OpenAI(api_key=os.getenv(api_key))
         self.instructions = "fix the following code and response just and exclusively with the fixed code using the provided data, no explanations, retrieve the whole function"
-    def get_fixed_function(self):        
-        completion = self.client.chat.completions.create(
-        model="gpt-3.5-turbo-1106",
-        messages=[
-            {"role": "system", "content": self.instructions},
-            {"role": "user", "content": self.prompt},
-        ]
-        )
-        return "\n".join(completion.choices[0].message.content.replace('\\n', '\n').replace('```','').splitlines()[1:])
+    def get_fixed_function(self, option):
 
+        if option == 1:
+            genai.configure(api_key=os.getenv())
+            model = genai.GenerativeModel("gemini-pro")
+            messages = [
+                {'role':'user',
+                 'parts': [self.instructions, self.prompt]}
+            ]
+            return model.generate_content(messages)            
 
+        elif option == 2:
+            completion = self.client.chat.completions.create(
+            model="gpt-3.5-turbo-1106",
+            messages=[
+                {"role": "system", "content": self.instructions},
+                {"role": "user", "content": self.prompt},
+            ]
+            )
+            return "\n".join(completion.choices[0].message.content.replace('\\n', '\n').replace('```','').splitlines()[1:])
+
+def input_user_ai():
+    try:
+        option = int(input(f"AI models avaible:\n\n  1) Gemini-Pro (free)\n  2)OpenAI\n\nWhich the AI model:"))
+        return option
+    except ValueError:
+        rich.print(f"[bold red]You must enter a number (1 or 2) to select a valid model[/bold red]")
+    if option > 2:
+        rich.print(f"[bold red]You must enter a number (1 or 2) to select a valid model[/bold red]")
+    input_user_ai()
 
 
 def fix_bug(function_name, path, data, inputs, function, main_response, args, get_module):
@@ -29,8 +49,8 @@ def fix_bug(function_name, path, data, inputs, function, main_response, args, ge
         if function[function_name]["expected"].get("comparator") != "Equals":
             rich.print(f"[bold red]Test for {function_name}: Cannot use ai with assertion other than Equals[/bold red]")
             return
-        if not data.get("api-key"):
-            rich.print("[bold red]Cannot use ai without OpenAI api-key[/bold red]")
+        if not data.get("api-key-openai") and not data.get("api-key-gemini"):
+            rich.print("[bold red]Cannot use ai without any api-key[/bold red]")
             return
         
         func_code = get_module('utils').extract_function_code(function_name, path)
@@ -49,7 +69,15 @@ def fix_bug(function_name, path, data, inputs, function, main_response, args, ge
             fix_bug = input(f"Do you want to fix the bug: '{bug}' in '{function_name}' using AI? (Y/n) ")
             if fix_bug.lower() != "y":
                 return
-        fixed_bug = bug_fixer.get_fixed_function()
+        
+        if data.get("api-key-openai"):
+            option = 1
+        elif data.get("api-key-gemini"):
+            option = 1
+
+        if data.get("api-key-openai") and data.get("api-key-gemini"):
+            option = input_user_ai()
+        fixed_bug = bug_fixer.get_fixed_function(option)
         with open(f"fixed_bug_{function_name}.tests.py", "w") as f:
             f.write(fixed_bug)
         

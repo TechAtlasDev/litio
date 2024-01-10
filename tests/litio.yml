@@ -1,4 +1,5 @@
-api-key: OPENAI_API_KEY
+api-key-openai: OPENAI_API_KEY
+api-key-gemini: OPENAI_API_KEY
 
 name: My Awesome Title
 tests:
